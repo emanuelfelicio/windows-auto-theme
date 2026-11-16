@@ -1,80 +1,112 @@
 # Automação de Tema Claro / Escuro para Windows (Sem Ativação)
 
-Solução nativa, sem programas pesados em segundo plano, para alternar o tema do sistema e do seu navegador (Brave, Opera, Chrome, Edge, etc.) automaticamente por horário:
+Solução nativa para alternar o tema do sistema operacional e de navegadores (Brave, Chrome, Opera, Edge, etc.) automaticamente por horário:
 
 - **07:00** ➔ **Tema Claro** (personalizável)
 - **18:00** ➔ **Tema Escuro** (personalizável)
-- **Ao fazer Login / Ligar o PC** ➔ Detecta o horário e aplica o tema correto imediatamente.
+- **Ao fazer Login / Ligar o PC** ➔ Aplica o tema correspondente ao horário imediatamente.
+
+As tarefas rodam em segundo plano de forma invisível via `wscript.exe`, sem abrir ou piscar janelas de terminal na tela.
 
 ---
 
-## 💡 Como funciona no Windows Não Ativado?
+## ⚡ Guia Rápido para Usuários Windows (Sem Make)
 
-O Windows não ativado bloqueia a interface visual de "Personalização" nas *Configurações*, mas **não bloqueia** alterações diretas no Registro do Usuário (`HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`):
-- `AppsUseLightTheme`: Altera navegadores Chromium, explorador de arquivos e aplicativos.
-- `SystemUsesLightTheme`: Altera a barra de tarefas e o menu iniciar.
+Abra o **PowerShell** na pasta do projeto e use os comandos abaixo:
 
-Como o navegador está configurado para seguir o tema do **"Dispositivo" / "Sistema"**, ao alterar essas chaves, o navegador muda de aparência instantaneamente.
+### 1. Instalar a Automação
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
+*Por padrão, define 07:00 para tema Claro e 18:00 para tema Escuro.*
+
+Se quiser **horários personalizados** (exemplo: Claro às 06:00 e Escuro às 20:00):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1 -DayHour 6 -NightHour 20
+```
+
+### 2. Verificar o Status
+Para checar se as tarefas estão ativas no Agendador do Windows:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1 -Status
+```
+
+### 3. Alternar Manualmente (Testar na hora)
+Se quiser forçar a troca de tema imediatamente sem esperar o horário:
+```powershell
+# Forçar tema claro agora
+powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode light
+
+# Forçar tema escuro agora
+powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode dark
+
+# Recalcular e aplicar com base no horário atual
+powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode auto
+```
+
+### 4. Desinstalar
+Remove todas as tarefas agendadas e limpa os arquivos instalados:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1 -Uninstall
+```
 
 ---
 
-## 🚀 Como Instalar
+## 📌 Como Funciona a Instalação (Cópia Estática)
 
-Abra o **PowerShell** no Windows (não precisa ser como Administrador) na pasta deste projeto:
+Ao executar a instalação (`setup.ps1`), os scripts são **copiados fisicamente** para a pasta:
+`C:\Users\<seu-usuario>\.theme-switcher\`
 
-### 1. Com os horários padrão (07:00 claro / 18:00 escuro):
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+* **Independência:** O Agendador de Tarefas do Windows executa essa cópia local. Isso garante que a automação continue funcionando normalmente mesmo se você mover, renomear ou excluir a pasta onde baixou o projeto.
+* **Atualização do código:** Se você fizer alterações manuais nos scripts dentro desta pasta do repositório, você deve rodar `setup.ps1` (ou `make install`) novamente para atualizar a cópia instalada no Windows.
+
+---
+
+## 🐧 Para Desenvolvedores no WSL / Linux (Uso do Makefile)
+
+Se você utiliza o **WSL (Ubuntu / Debian)** e prefere gerenciar o projeto diretamente pelo terminal Linux, utilize o utilitário `make`:
+
+> **Nota:** O `Makefile` foi criado exclusivamente para quem está no terminal WSL/Linux. Ele faz a ponte chamando o `powershell.exe` do Windows por baixo dos panos.
+
+```bash
+make install           # Instala as tarefas agendadas no Windows
+make status            # Consulta o estado das tarefas
+make uninstall         # Remove a automação e limpa os arquivos
+make sync-light        # Força o tema Claro imediatamente
+make sync-dark         # Força o tema Escuro imediatamente
+make sync-auto         # Sincroniza com o horário atual
+make test              # Executa os testes de sintaxe e lógica
+make test-integration  # Executa testes com integração no Registro do Windows
 ```
-
-### 2. Com horários personalizados (exemplo: 06:00 claro e 20:00 escuro):
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -DayHour 6 -NightHour 20
-```
-
-O instalador irá:
-1. Copiar o script para uma pasta persistente do seu usuário (`%USERPROFILE%\.theme-switcher`).
-2. Criar 3 tarefas no **Agendador de Tarefas do Windows** (Horário diurno, noturno e no Logon).
-3. Aplicar imediatamente o tema adequado para o horário atual.
 
 ---
 
 ## 🌐 Configuração no Navegador
 
 Certifique-se de que a aparência do seu navegador está definida para acompanhar o sistema operacional:
-- **Brave**: `brave://settings/appearance` ➔ **Cores do Brave** ➔ Selecione **"Mesmo que o Windows"** (ou *Same as Windows*).
+
+- **Brave**: `brave://settings/appearance` ➔ **Cores do Brave** ➔ Selecione **"Mesmo que o Windows"**.
 - **Chrome**: `chrome://settings/appearance` ➔ Tema ➔ **"Padrão do dispositivo"**.
 - **Opera**: `opera://settings/appearance` ➔ Tema ➔ **"Sistema"**.
+- **Edge**: `edge://settings/appearance` ➔ Tema geral ➔ **"Padrão do sistema"**.
 
 ---
 
-## 🧪 Como Testar Manualmente
+## 🧪 Testes Automatizados
 
-Se você quiser forçar a troca para testar sem esperar o horário:
+O projeto inclui validações sem dependências externas para conferir a integridade antes do uso:
 
-- **Forçar Tema Claro:**
+- **No Windows (PowerShell):**
   ```powershell
-  powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode light
+  # Testes de sintaxe e lógica de horários
+  powershell -ExecutionPolicy Bypass -File .\tests\run-tests.ps1
+
+  # Testes de integração com o Registro do Windows
+  powershell -ExecutionPolicy Bypass -File .\tests\run-tests.ps1 -Integration
   ```
 
-- **Forçar Tema Escuro:**
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode dark
+- **No WSL (Linux):**
+  ```bash
+  make test
+  make test-integration
   ```
-
-- **Sincronizar com o horário atual:**
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode auto
-  # ou passando horários específicos:
-  powershell -ExecutionPolicy Bypass -File .\theme-agent.ps1 -Mode auto -DayHour 8 -NightHour 19
-  ```
-
----
-
-## 🗑️ Como Desinstalar
-
-Caso queira remover as tarefas automáticas a qualquer momento:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
-```

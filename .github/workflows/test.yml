@@ -1,0 +1,22 @@
+name: Automated Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Standalone Test Suite
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Test Suite (with Integration)
+        shell: pwsh
+        run: |
+          ./tests/run-tests.ps1 -Integration

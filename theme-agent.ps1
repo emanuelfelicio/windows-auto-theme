@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Gerencia a alternância de tema Claro/Escuro no Windows via Registro.
 .DESCRIPTION
@@ -28,10 +28,51 @@ if (-not (Test-Path $registryPath)) {
     New-Item -Path $registryPath -Force | Out-Null
 }
 
+# Notifica globalmente o sistema operacional e todas as janelas ativas sobre a alteração de cores.
+# Isso força o explorer.exe e a Barra de Tarefas a invalidarem seus caches de cores na memória
+# e repintarem a interface na hora, sem precisar fechar ou reiniciar processos.
+function Broadcast-ThemeChange {
+    # Declaração P/Invoke para importar a API nativa SendMessageTimeout da user32.dll
+    $signature = @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32ThemeNotifier {
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd,
+        uint Msg,
+        UIntPtr wParam,
+        string lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out UIntPtr lpdwResult
+    );
+}
+"@
+    # Garante idempotência: só compila a classe C# se ela ainda não existir na sessão do PowerShell
+    if (-not ("Win32ThemeNotifier" -as [type])) {
+        Add-Type -TypeDefinition $signature -Language CSharp
+    }
+
+    $result = [UIntPtr]::Zero
+
+  
+    $null = [Win32ThemeNotifier]::SendMessageTimeout(
+        [IntPtr]0xffff,
+        0x001A,
+        [UIntPtr]::Zero,
+        "ImmersiveColorSet",
+        2,
+        200,
+        [ref]$result
+    )
+}
+
 function Set-ThemeValues([int]$value) {
     # 0 = Escuro, 1 = Claro
     Set-ItemProperty -Path $registryPath -Name "AppsUseLightTheme" -Value $value -Type DWord
     Set-ItemProperty -Path $registryPath -Name "SystemUsesLightTheme" -Value $value -Type DWord
+    Broadcast-ThemeChange
 }
 
 if ($Mode -eq 'auto') {
