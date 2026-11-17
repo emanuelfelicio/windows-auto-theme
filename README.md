@@ -1,4 +1,4 @@
-# Automação de Tema Claro / Escuro para Windows (Sem Ativação)
+# Automação de Tema Claro / Escuro para Windows
 
 Solução nativa para alternar o tema do sistema operacional e de navegadores (Brave, Chrome, Opera, Edge, etc.) automaticamente por horário:
 
@@ -10,7 +10,7 @@ As tarefas rodam em segundo plano de forma invisível via `wscript.exe`, sem abr
 
 ---
 
-## ⚡ Guia Rápido para Usuários Windows (Sem Make)
+## ⚡ Guia Rápido para Usuários
 
 Abra o **PowerShell** na pasta do projeto e use os comandos abaixo:
 
