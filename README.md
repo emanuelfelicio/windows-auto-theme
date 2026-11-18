@@ -1,12 +1,28 @@
-# Automação de Tema Claro / Escuro para Windows
+# Alternância automática do tema do dispositivo no Windows
 
-Solução nativa para alternar o tema do sistema operacional e de navegadores (Brave, Chrome, Opera, Edge, etc.) automaticamente por horário:
+Aplicativos e navegadores configurados para usar o tema do dispositivo acompanham a aparência do Windows. Este projeto automatiza a mudança do tema do Windows para que esses aplicativos também alternem entre claro e escuro sem ajustes manuais:
 
 - **07:00** ➔ **Tema Claro** (personalizável)
 - **18:00** ➔ **Tema Escuro** (personalizável)
 - **Ao fazer Login / Ligar o PC** ➔ Aplica o tema correspondente ao horário imediatamente.
 
-As tarefas rodam em segundo plano de forma invisível via `wscript.exe`, sem abrir ou piscar janelas de terminal na tela.
+Uma única tarefa (`AutoTheme`) roda nos dois horários e no logon. Se um horário diário for perdido, `StartWhenAvailable` pode iniciar a tarefa depois; ela consulta a hora atual e escolhe o tema correto.
+
+A tarefa roda em segundo plano de forma invisível via `wscript.exe`, sem abrir ou piscar janelas de terminal na tela.
+
+---
+
+## ⬇️ Download
+
+1. Acesse a página de [**Releases**](../../releases/latest) do repositório.
+2. Baixe o arquivo `win-theme-switcher-vX.X.X.zip`.
+3. Extraia em qualquer pasta.
+4. Abra o PowerShell na pasta extraída e execute:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\setup.ps1
+   ```
+
+Se estiver atualizando uma instalação anterior, remova manualmente as tarefas `AutoTheme_Day`, `AutoTheme_Night` e `AutoTheme_Logon` no Agendador do Windows antes de instalar. A versão atual registra somente `AutoTheme`.
 
 ---
 
@@ -110,3 +126,7 @@ O projeto inclui validações sem dependências externas para conferir a integri
   make test
   make test-integration
   ```
+
+## Licença e marcas
+
+O código deste projeto é dedicado ao domínio público sob a [Unlicense](UNLICENSE). O pacote não inclui binários, logos nem imagens da Microsoft; ele usa APIs disponíveis no Windows. Windows é uma marca da Microsoft Corporation. Este projeto é independente e não é afiliado nem endossado pela Microsoft.

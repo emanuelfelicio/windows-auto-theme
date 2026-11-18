@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build release ZIP
+        run: |
+          mkdir release
+          cp theme-agent.ps1 setup.ps1 run-hidden.vbs README.md UNLICENSE release/
+          cd release
+          zip -r ../win-theme-switcher-${{ github.ref_name }}.zip .
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "win-theme-switcher ${{ github.ref_name }}"
+          body: |
+            ## Instalação
+
+            1. Baixe o arquivo `win-theme-switcher-${{ github.ref_name }}.zip` abaixo.
+            2. Extraia em qualquer pasta.
+            3. Abra o PowerShell na pasta extraída e execute:
+
+            ```powershell
+            powershell -ExecutionPolicy Bypass -File .\setup.ps1
+            ```
+
+            Consulte o [README](https://github.com/${{ github.repository }}/blob/main/README.md) para mais detalhes.
+          files: win-theme-switcher-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: false
