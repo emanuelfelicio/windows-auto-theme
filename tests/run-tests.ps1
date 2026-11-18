@@ -20,10 +20,10 @@ function Test-Case([string]$name, [scriptblock]$assert) {
     try {
         & $assert
         Write-Host "  [PASS] $name" -ForegroundColor Green
-        $global:passed++
+        $script:passed++
     } catch {
         Write-Host "  [FAIL] $name -> $_" -ForegroundColor Red
-        $global:failed++
+        $script:failed++
     }
 }
 
@@ -149,10 +149,49 @@ if ($Integration) {
 
     # Teste de disponibilidade dos cmdlets do Agendador de Tarefas
     Test-Case "Agendador de Tarefas: Cmdlets Win32 disponíveis no ambiente" {
-        $requiredCmdlets = @("Register-ScheduledTask", "Unregister-ScheduledTask", "New-ScheduledTaskTrigger", "New-ScheduledTaskAction")
+        $requiredCmdlets = @("Get-ScheduledTask", "Register-ScheduledTask", "Unregister-ScheduledTask", "New-ScheduledTaskTrigger", "New-ScheduledTaskAction", "New-ScheduledTaskSettingsSet")
         foreach ($cmd in $requiredCmdlets) {
             if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
                 throw "Cmdlet obrigatório '$cmd' não encontrado neste ambiente Windows."
+            }
+        }
+    }
+
+    Test-Case "setup.ps1: registra no Agendador a tarefa auto com dois horários e logon" {
+        $integrationTaskName = "ThemeSwitcher_Integration_$([guid]::NewGuid().ToString('N'))"
+        $integrationDirectory = Join-Path $env:TEMP $integrationTaskName
+        $setupPath = Join-Path $PSScriptRoot "..\setup.ps1"
+        try {
+            & $setupPath -ScheduledTaskName $integrationTaskName -InstallDirectory $integrationDirectory -SkipInitialSync -DayHour 7 -NightHour 18
+            $task = Get-ScheduledTask -TaskName $integrationTaskName
+            $triggerCount = $task.Triggers.Count
+            $dailyStartBoundaries = @($task.Triggers | Where-Object { $_.CimClass.CimClassName -eq "MSFT_TaskDailyTrigger" } | ForEach-Object StartBoundary)
+            $logonTriggerCount = @($task.Triggers | Where-Object { $_.CimClass.CimClassName -eq "MSFT_TaskLogonTrigger" }).Count
+            $actionArguments = $task.Actions[0].Arguments
+
+            if ($triggerCount -ne 3) { throw "Esperados 3 gatilhos, obtidos $triggerCount." }
+            if ($logonTriggerCount -ne 1) { throw "Esperado 1 gatilho de logon, obtidos $logonTriggerCount." }
+            if (($dailyStartBoundaries -join " ") -notmatch "T07:00:00" -or ($dailyStartBoundaries -join " ") -notmatch "T18:00:00") {
+                throw "Os gatilhos diários registrados não contêm os horários 07:00 e 18:00."
+            }
+            if (-not $task.Settings.StartWhenAvailable) { throw "StartWhenAvailable não foi ativado." }
+            if ($actionArguments -notmatch "-Mode auto" -or $actionArguments -match "-Mode (light|dark)") {
+                throw "A ação registrada não está configurada para executar em modo auto."
+            }
+            if ($actionArguments -notmatch [regex]::Escape((Join-Path $integrationDirectory "run-hidden.vbs"))) {
+                throw "A tarefa registrada não aponta para o launcher instalado pelo setup.ps1."
+            }
+            if (-not (Test-Path (Join-Path $integrationDirectory "theme-agent.ps1")) -or
+                -not (Test-Path (Join-Path $integrationDirectory "run-hidden.vbs"))) {
+                throw "setup.ps1 não copiou os arquivos para o diretório de instalação isolado."
+            }
+        } finally {
+            $registeredTask = Get-ScheduledTask -TaskName $integrationTaskName -ErrorAction SilentlyContinue
+            if ($registeredTask) {
+                Unregister-ScheduledTask -InputObject $registeredTask -Confirm:$false
+            }
+            if (Test-Path $integrationDirectory) {
+                Remove-Item -Path $integrationDirectory -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
     }

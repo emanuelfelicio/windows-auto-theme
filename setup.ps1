@@ -12,10 +12,20 @@
     Hora do dia para ativar o tema claro (0 a 23). Padrão: 7 (07:00).
 .PARAMETER NightHour
     Hora do dia para ativar o tema escuro (0 a 23). Padrão: 18 (18:00).
+.PARAMETER ScheduledTaskName
+    Nome da tarefa. Padrão: AutoTheme.
+.PARAMETER InstallDirectory
+    Diretório dos arquivos instalados. Padrão: .theme-switcher no perfil do usuário.
+.PARAMETER SkipInitialSync
+    Não executa a sincronização imediata após instalar a tarefa.
 #>
 param(
     [switch]$Uninstall,
     [switch]$Status,
+    [ValidateNotNullOrEmpty()]
+    [string]$ScheduledTaskName = "AutoTheme",
+    [string]$InstallDirectory,
+    [switch]$SkipInitialSync,
 
     [ValidateRange(0, 23)]
     [int]$DayHour = 7,
@@ -27,27 +37,23 @@ param(
 $ErrorActionPreference = "Stop"
 
 # === Configurações Centralizadas ===
-$targetDir      = Join-Path $env:USERPROFILE ".theme-switcher"
+$targetDir      = if ($InstallDirectory) { $InstallDirectory } else { Join-Path $env:USERPROFILE ".theme-switcher" }
 $targetScript   = Join-Path $targetDir "theme-agent.ps1"
 $targetLauncher = Join-Path $targetDir "run-hidden.vbs"
 $sourceScript   = Join-Path $PSScriptRoot "theme-agent.ps1"
 $sourceLauncher = Join-Path $PSScriptRoot "run-hidden.vbs"
-$taskNames      = @("AutoTheme_Day", "AutoTheme_Night", "AutoTheme_Logon")
+$taskName       = $ScheduledTaskName
 
 # -------------------------------------------------------------
 # 1. CONSULTA DE STATUS (-Status)
 # -------------------------------------------------------------
 if ($Status) {
     Write-Host "`n==> Verificando status das tarefas no Windows..." -ForegroundColor Cyan
-    $foundAny = $false
-    foreach ($task in $taskNames) {
-        $taskObj = Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
-        if ($taskObj) {
-            $foundAny = $true
-            Write-Host "  [OK] $task -> Estado: $($taskObj.State)" -ForegroundColor Green
-        } else {
-            Write-Host "  [--] $task -> Não instalada" -ForegroundColor Yellow
-        }
+    $taskObj = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if ($taskObj) {
+        Write-Host "  [OK] $taskName -> Estado: $($taskObj.State)" -ForegroundColor Green
+    } else {
+        Write-Host "  [--] $taskName -> Não instalada" -ForegroundColor Yellow
     }
 
     $installedScript = Test-Path $targetScript
@@ -63,13 +69,11 @@ if ($Status) {
 if ($Uninstall) {
     Write-Host "`n==> Desinstalando automação de temas..." -ForegroundColor Cyan
 
-    foreach ($task in $taskNames) {
-        if (Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) {
-            Unregister-ScheduledTask -TaskName $task -Confirm:$false
-            Write-Host "  [OK] Tarefa '$task' removida." -ForegroundColor Green
-        } else {
-            Write-Host "  [--] Tarefa '$task' não estava registrada." -ForegroundColor DarkGray
-        }
+    if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        Write-Host "  [OK] Tarefa '$taskName' removida." -ForegroundColor Green
+    } else {
+        Write-Host "  [--] Tarefa '$taskName' não estava registrada." -ForegroundColor DarkGray
     }
 
     if (Test-Path $targetDir) {
@@ -101,29 +105,24 @@ Write-Host "  [OK] Script e Launcher copiados para: $targetDir" -ForegroundColor
 # Definição de execução via wscript (sem flash de console)
 $wscriptExe = "wscript.exe"
 
-$actionLight = New-ScheduledTaskAction -Execute $wscriptExe -Argument "`"$targetLauncher`" -Mode light"
-$actionDark  = New-ScheduledTaskAction -Execute $wscriptExe -Argument "`"$targetLauncher`" -Mode dark"
 $actionAuto  = New-ScheduledTaskAction -Execute $wscriptExe -Argument "`"$targetLauncher`" -Mode auto -DayHour $DayHour -NightHour $NightHour"
 
-$triggerLight = New-ScheduledTaskTrigger -Daily -At $dayTimeStr
-$triggerDark  = New-ScheduledTaskTrigger -Daily -At $nightTimeStr
+$triggerDay   = New-ScheduledTaskTrigger -Daily -At $dayTimeStr
+$triggerNight = New-ScheduledTaskTrigger -Daily -At $nightTimeStr
 $triggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$triggers     = @($triggerDay, $triggerNight, $triggerLogon)
 
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
-# Registro das tarefas
-Register-ScheduledTask -TaskName "AutoTheme_Day"   -Action $actionLight -Trigger $triggerLight -Settings $settings -Force | Out-Null
-Write-Host "  [OK] Tarefa matutina registrada ($dayTimeStr -> Claro)" -ForegroundColor Green
+# Uma única tarefa recalcula o tema para todos os gatilhos, inclusive quando inicia atrasada.
+Register-ScheduledTask -TaskName $taskName -Action $actionAuto -Trigger $triggers -Settings $settings -Force | Out-Null
+Write-Host "  [OK] Tarefa '$taskName' registrada (diária às $dayTimeStr e $nightTimeStr, e no logon; modo auto)" -ForegroundColor Green
 
-Register-ScheduledTask -TaskName "AutoTheme_Night" -Action $actionDark  -Trigger $triggerDark  -Settings $settings -Force | Out-Null
-Write-Host "  [OK] Tarefa noturna registrada ($nightTimeStr -> Escuro)" -ForegroundColor Green
-
-Register-ScheduledTask -TaskName "AutoTheme_Logon" -Action $actionAuto  -Trigger $triggerLogon -Settings $settings -Force | Out-Null
-Write-Host "  [OK] Tarefa de logon registrada (Ajuste imediato ao ligar)" -ForegroundColor Green
-
-# Execução imediata para sincronizar
-Write-Host "`n==> Aplicando tema correspondente ao horário atual..." -ForegroundColor Cyan
-Start-Process -FilePath $wscriptExe -ArgumentList "`"$targetLauncher`" -Mode auto -DayHour $DayHour -NightHour $NightHour"
+if (-not $SkipInitialSync) {
+    # Execução imediata para sincronizar
+    Write-Host "`n==> Aplicando tema correspondente ao horário atual..." -ForegroundColor Cyan
+    Start-Process -FilePath $wscriptExe -ArgumentList "`"$targetLauncher`" -Mode auto -DayHour $DayHour -NightHour $NightHour"
+}
 
 Write-Host "`n[SUCESSO] Instalação concluída!" -ForegroundColor Green
 Write-Host "  - Claro: $dayTimeStr"
